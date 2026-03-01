@@ -1,0 +1,27 @@
+# Python
+__pycache__/
+*.py[cod]
+*$py.class
+
+# Environments
+.env
+.venv
+env/
+venv/
+ENV/
+
+# Database
+olx_rentals.db
+*.sqlite3
+
+# OS generated files
+.DS_Store
+Thumbs.db
+
+# GSD Boilerplate
+.agents/
+instructions.md
+testing_instructions.md
+PROJECT.md
+REQUIREMENTS.md
+get-shit-done/
