@@ -3,6 +3,7 @@
 import time
 import winsound
 import eel
+import urllib.parse
 from urllib.parse import urljoin
 from playwright.sync_api import sync_playwright, TimeoutError as PlaywrightTimeout
 
@@ -37,8 +38,8 @@ def update_ui_stats(processed, saved, duplicates):
         pass
 
 
-def build_url(bhk_config):
-    """Build the dynamic OLX URL based on selected BHKs."""
+def build_url(base_geo_url, bhk_config):
+    """Build the robust OLX URL dynamically using the geographic base URL."""
     rooms = []
     for bhk in bhk_config.keys():
         rooms.append(bhk)
@@ -46,7 +47,60 @@ def build_url(bhk_config):
     rooms.sort()
     room_param = "_and_".join(rooms)
     
-    return f"https://www.olx.in/en-in/jagatpura_g5333216/for-rent-houses-apartments_c1723?filter=bachelors_eq_yes%2Crooms_eq_{room_param}"
+    # Apply the BHK filters to the geographic node URL
+    return f"{base_geo_url}?filter=bachelors_eq_yes%2Crooms_eq_{room_param}"
+
+
+def auto_resolve_location(location_query):
+    """Use a headless browser to type the query into OLX and grab the exact geographic URL."""
+    try:
+        log(f"Auto-resolving location: '{location_query}'...", "system")
+        with sync_playwright() as pw:
+            # Use the global HEADLESS config to avoid Cloudflare blocks
+            browser = pw.chromium.launch(headless=HEADLESS)
+            context = browser.new_context(
+                user_agent="Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36"
+            )
+            page = context.new_page()
+
+            page.goto("https://www.olx.in/en-in/for-rent-houses-apartments_c1723", timeout=30000)
+
+            # Click and fill the location search input
+            loc_input = page.locator('[data-aut-id="locationSearch"]')
+            loc_input.click()
+            loc_input.fill(location_query)
+
+            # Wait for suggestions to appear
+            try:
+                suggestion = page.locator('li[data-aut-id="suggestion"]').first
+                suggestion.wait_for(state="visible", timeout=10000)
+                suggestion.click()
+            except PlaywrightTimeout:
+                log("Failed to automatically find location suggestions on OLX.", "error")
+                browser.close()
+                return None
+
+            # Wait for URL to change to a geographic node
+            target_url = None
+            for _ in range(15):
+                time.sleep(1)
+                current_url = page.url
+                if "_g" in current_url and current_url != "https://www.olx.in/en-in/for-rent-houses-apartments_c1723":
+                    target_url = current_url
+                    break
+
+            browser.close()
+
+            if target_url:
+                log(f"Location resolved successfully to: {target_url.split('/en-in/')[1].split('/')[0]}", "success")
+                return target_url
+            else:
+                log("Could not lock onto geographic URL.", "error")
+                return None
+
+    except Exception as e:
+        log(f"Error resolving location automatically: {e}", "error")
+        return None
 
 
 def alert_and_pause():
@@ -68,7 +122,7 @@ def alert_and_pause():
     # Wait until the UI sets captcha_solved to True or stop is requested
     while not captcha_solved and not stop_requested:
         time.sleep(1)
-        
+
     captcha_solved = False # reset for next time
 
 
@@ -105,8 +159,9 @@ def safe_navigate(page, url):
     """Navigate to URL and handle potential CAPTCHAs."""
     try:
         page.goto(url, wait_until="domcontentloaded", timeout=PAGE_LOAD_TIMEOUT)
-    except PlaywrightTimeout:
-        log(f"Navigation timed out for: {url}", "warning")
+    except Exception as e:
+        log(f"Navigation error for {url}: {str(e)}", "warning")
+        raise e  # re-raise so calling code knows navigation failed
 
     time.sleep(3)
     handle_captcha_if_present(page)
@@ -119,14 +174,14 @@ def extract_listing_cards(page):
     try:
         page.wait_for_selector('[data-aut-id="itemPrice"]', timeout=10000)
     except Exception:
-        log("Timeout waiting for itemPrice elements.", "warning")
-    
+        log("Timeout waiting for itemPrice elements. (Page may be empty or blocked)", "warning")
+
     time.sleep(2)
 
     card_elements = page.query_selector_all('li[data-aut-id="itemBox"]')
     if not card_elements:
         card_elements = page.query_selector_all('[data-aut-id="itemBox"]')
-        
+
     if not card_elements:
         all_links = page.query_selector_all('a[href*="/item/"]')
         card_elements = [link for link in all_links if link.query_selector('[data-aut-id="itemPrice"]')]
@@ -234,7 +289,8 @@ def scrape_detail_page(page, url):
             "seller_type": seller_type,
             "furnishing": furnishing,
         }
-    except Exception:
+    except Exception as e:
+        log(f"Detail scrape failed for {url}: {str(e)}", "error")
         return None
 
 
@@ -267,18 +323,40 @@ def go_to_next_page(page):
     return False
 
 
-def run_scraper(bhk_config, max_pages):
+def run_scraper(location_query, bhk_config, max_pages):
     """Main entry point for scraping thread."""
     global stop_requested
     stop_requested = False
     
+    if not location_query:
+        log("No location provided.", "error")
+        try:
+            eel.on_scraping_finished("Failed: No location.")
+        except Exception:
+            pass
+        return
+
     init_db()
     initial_count = get_listing_count()
     
     log(f"Database initialized. Existing listings: {initial_count}", "info")
     
-    target_url = build_url(bhk_config)
-    log(f"Target URL: {target_url}", "system")
+    # 1. Resolve Text -> Geographic URL
+    base_geo_url = auto_resolve_location(location_query)
+    if not base_geo_url:
+        log("Could not resolve location. Stopping scraper.", "error")
+        try:
+            eel.on_scraping_finished("Failed: Bad location.")
+        except Exception:
+            pass
+        return
+
+    if stop_requested:
+        return
+
+    # 2. Build final filters
+    target_url = build_url(base_geo_url, bhk_config)
+    log(f"Dynamic Target URL: {target_url}", "system")
 
     saved = 0
     duplicates = 0
@@ -298,8 +376,13 @@ def run_scraper(bhk_config, max_pages):
             page = context.new_page()
             page.set_default_timeout(PAGE_LOAD_TIMEOUT)
 
-            log("Navigating to search page...", "system")
-            safe_navigate(page, target_url)
+            log("Navigating to filtered search page...", "system")
+            try:
+                safe_navigate(page, target_url)
+            except Exception as e:
+                log(f"Failed to load the main search page: {str(e)}", "error")
+                browser.close()
+                return
 
             for page_num in range(1, max_pages + 1):
                 if stop_requested:
@@ -338,7 +421,6 @@ def run_scraper(bhk_config, max_pages):
                             price_val = int(clean_price)
                             bhk_num = card["bhk"].replace("BHK", "").strip()
                             
-                            # Use dynamic config from UI
                             if bhk_num in bhk_config:
                                 min_allowed = bhk_config[bhk_num]["min"]
                                 max_allowed = bhk_config[bhk_num]["max"]
@@ -347,22 +429,28 @@ def run_scraper(bhk_config, max_pages):
                                     log(f"[{processed}] SKIP (out of budget: {bhk_num}BHK at ₹{price_val})", "skip")
                                     continue
                             else:
-                                # We didn't select this BHK in the UI, but it appeared anyway
                                 log(f"[{processed}] SKIP (unselected BHK type: {bhk_num})", "skip")
                                 continue
-                                
                     except Exception:
-                        pass # Ignore parsing errors and keep checking
+                        pass
 
                     log(f"[{processed}] Inspecting: {card_title[:40]}...", "system")
 
-                    detail_page = context.new_page()
-                    detail_page.set_default_timeout(PAGE_LOAD_TIMEOUT)
-                    detail = scrape_detail_page(detail_page, listing_url)
-                    detail_page.close()
+                    detail = None
+                    try:
+                        detail_page = context.new_page()
+                        detail_page.set_default_timeout(PAGE_LOAD_TIMEOUT)
+                        detail = scrape_detail_page(detail_page, listing_url)
+                    except Exception as e:
+                        log(f"[{processed}] Tab Error loading detail page: {str(e)}", "error")
+                    finally:
+                        try:
+                            detail_page.close()
+                        except Exception:
+                            pass
 
                     if not detail:
-                        log("    -> ERROR (could not load detail page, using defaults)", "error")
+                        log(f"[{processed}] -> WARNING: Using defaults due to failure loading flat details.", "warning")
                         detail = {"seller_type": "Unknown", "furnishing": "Unknown"}
 
                     listing_data = {
@@ -378,7 +466,7 @@ def run_scraper(bhk_config, max_pages):
                     insert_listing(listing_data)
                     saved += 1
                     update_ui_stats(processed, saved, duplicates)
-                    log(f"    -> SAVED | {card['bhk']} | {listing_data['price']} | {listing_data['seller_type']}", "success")
+                    log(f"[{processed}] -> SAVED | {card['bhk']} | {listing_data['price']} | {listing_data['seller_type']}", "success")
 
                 if stop_requested:
                     break
@@ -390,7 +478,7 @@ def run_scraper(bhk_config, max_pages):
             browser.close()
             
     except Exception as e:
-        log(f"Scraper encountered an error: {str(e)}", "error")
+        log(f"CRITICAL ERROR: Scraper encountered an unrecoverable error: {str(e)}", "error")
 
     final_count = get_listing_count()
     
