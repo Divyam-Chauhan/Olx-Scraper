@@ -1,0 +1,124 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>OLX Rental Scraper</title>
+    <!-- Google Fonts for modern typography -->
+    <link href="https://fonts.googleapis.com/css2?family=Outfit:wght@300;400;500;600;700&display=swap" rel="stylesheet">
+    <link rel="stylesheet" href="style.css">
+    <script type="text/javascript" src="/eel.js"></script>
+</head>
+<body>
+    <div class="app-container">
+        <header>
+            <div class="logo">
+                <svg width="24" height="24" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg">
+                    <path d="M12 2L2 7L12 12L22 7L12 2Z" stroke="#4F46E5" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/>
+                    <path d="M2 17L12 22L22 17" stroke="#4F46E5" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/>
+                    <path d="M2 12L12 17L22 12" stroke="#4F46E5" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/>
+                </svg>
+                <h1>OLX Scraper <span>Jagatpura Edition</span></h1>
+            </div>
+            <div class="status-indicator">
+                <div class="dot" id="status-dot"></div>
+                <span id="status-text">Ready</span>
+            </div>
+        </header>
+
+        <main>
+            <div class="left-panel">
+                <div class="glass-card settings-card">
+                    <h2>Scraper Settings</h2>
+                    
+                    <div class="bhk-group">
+                        <label class="checkbox-container">
+                            <input type="checkbox" id="bhk1" value="1">
+                            <span class="checkmark"></span>
+                            1 BHK
+                        </label>
+                        <div class="price-inputs" id="price-inputs-1">
+                            <input type="number" id="min-1" placeholder="Min Price" value="0">
+                            <input type="number" id="max-1" placeholder="Max Price" value="10000">
+                        </div>
+                    </div>
+
+                    <div class="bhk-group">
+                        <label class="checkbox-container">
+                            <input type="checkbox" id="bhk2" value="2" checked>
+                            <span class="checkmark"></span>
+                            2 BHK
+                        </label>
+                        <div class="price-inputs" id="price-inputs-2">
+                            <input type="number" id="min-2" placeholder="Min Price" value="0">
+                            <input type="number" id="max-2" placeholder="Max Price" value="15000">
+                        </div>
+                    </div>
+
+                    <div class="bhk-group">
+                        <label class="checkbox-container">
+                            <input type="checkbox" id="bhk3" value="3" checked>
+                            <span class="checkmark"></span>
+                            3 BHK
+                        </label>
+                        <div class="price-inputs" id="price-inputs-3">
+                            <input type="number" id="min-3" placeholder="Min Price" value="0">
+                            <input type="number" id="max-3" placeholder="Max Price" value="20000">
+                        </div>
+                    </div>
+
+                    <div class="form-group">
+                        <label>Max Pages to Scrape</label>
+                        <input type="number" id="max-pages" value="50">
+                    </div>
+
+                    <button id="start-btn" class="primary-btn">Start Scraping</button>
+                    <button id="stop-btn" class="secondary-btn" style="display: none;">Stop</button>
+                </div>
+            </div>
+
+            <div class="right-panel">
+                <div class="glass-card log-card">
+                    <div class="log-header">
+                        <h2>Activity Log</h2>
+                        <button id="clear-log-btn" class="icon-btn">
+                            <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M3 6h18M19 6v14a2 2 0 01-2 2H7a2 2 0 01-2-2V6m3 0V4a2 2 0 012-2h4a2 2 0 012 2v2"></path></svg>
+                        </button>
+                    </div>
+                    <div class="terminal" id="terminal">
+                        <div class="log-line system">Waiting for configuration...</div>
+                    </div>
+                </div>
+
+                <div class="glass-card stats-card">
+                    <div class="stat-box">
+                        <span class="stat-label">Processed</span>
+                        <span class="stat-value" id="stat-processed">0</span>
+                    </div>
+                    <div class="stat-box">
+                        <span class="stat-label">Saved</span>
+                        <span class="stat-value" id="stat-saved">0</span>
+                    </div>
+                    <div class="stat-box">
+                        <span class="stat-label">Duplicates</span>
+                        <span class="stat-value" id="stat-duplicates">0</span>
+                    </div>
+                </div>
+            </div>
+        </main>
+        
+        <!-- Captcha Modal Overlay -->
+        <div id="captcha-modal" class="modal-overlay">
+            <div class="modal-content glass-card">
+                <div class="warning-icon">
+                    <svg width="48" height="48" viewBox="0 0 24 24" fill="none" stroke="#F59E0B" stroke-width="2"><path d="M10.29 3.86L1.82 18a2 2 0 001.71 3h16.94a2 2 0 001.71-3L13.71 3.86a2 2 0 00-3.42 0zM12 9v4m0 4h.01"></path></svg>
+                </div>
+                <h2>CAPTCHA / Block Detected!</h2>
+                <p>The scraper has been paused. Please switch to the opened Chromium browser window and solve the CAPTCHA manually to prove you are human.</p>
+                <button id="resume-btn" class="primary-btn warning-btn">I've Solved It — Resume Scraping</button>
+            </div>
+        </div>
+    </div>
+    <script src="script.js"></script>
+</body>
+</html>
