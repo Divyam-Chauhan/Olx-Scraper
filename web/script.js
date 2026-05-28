@@ -20,6 +20,13 @@ const statusDot = document.getElementById('status-dot');
 const statusText = document.getElementById('status-text');
 const captchaModal = document.getElementById('captcha-modal');
 const resumeBtn = document.getElementById('resume-btn');
+const locationInput = document.getElementById('location-query');
+
+// DB Modal Elements
+const dbModal = document.getElementById('db-modal');
+const viewDbBtn = document.getElementById('view-db-btn');
+const closeDbModalBtn = document.getElementById('close-db-modal');
+const dbTableBody = document.getElementById('db-table-body');
 
 // Stats Elements
 const statProcessed = document.getElementById('stat-processed');
@@ -29,11 +36,11 @@ const statDuplicates = document.getElementById('stat-duplicates');
 function log(message, type = 'system') {
     const el = document.createElement('div');
     el.className = `log-line ${type}`;
-    
+
     // Add timestamp
     const now = new Date();
     const time = now.toLocaleTimeString([], { hour12: false, hour: '2-digit', minute: '2-digit', second: '2-digit' });
-    
+
     el.innerText = `[${time}] ${message}`;
     terminal.appendChild(el);
     terminal.scrollTop = terminal.scrollHeight;
@@ -45,8 +52,15 @@ clearBtn.addEventListener('click', () => {
 
 // Start Scraping
 startBtn.addEventListener('click', async () => {
+    const locationQuery = locationInput.value.trim();
+    if (!locationQuery) {
+        log("Please enter a valid location.", "error");
+        return;
+    }
+
     // Gather config
     const config = {
+        location_query: locationQuery,
         bhk_config: {},
         max_pages: parseInt(document.getElementById('max-pages').value) || 50
     };
@@ -72,7 +86,7 @@ startBtn.addEventListener('click', async () => {
     stopBtn.style.display = 'block';
     statusDot.className = 'dot running';
     statusText.innerText = 'Scraping...';
-    
+
     // Reset stats
     statProcessed.innerText = '0';
     statSaved.innerText = '0';
@@ -93,11 +107,51 @@ stopBtn.addEventListener('click', () => {
 
 // Resume from Captcha
 resumeBtn.addEventListener('click', () => {
-    captchaModal.classList.remove('active');
-    log("Resuming execution...", "info");
-    statusDot.className = 'dot running';
-    statusText.innerText = 'Scraping...';
-    eel.resume_scraping()();
+    captchaModal.style.display = 'none';
+    eel.resume_scraping();
+    log("Resumed scraping.", "info");
+});
+
+// Database Viewer Logic
+viewDbBtn.addEventListener('click', async () => {
+    // Show modal and loading state
+    dbModal.classList.add('active');
+    dbTableBody.innerHTML = '<tr><td colspan="8" style="text-align:center;">Loading database...</td></tr>';
+
+    // Fetch data from python backend
+    const rows = await eel.fetch_database()();
+
+    // Render table
+    dbTableBody.innerHTML = '';
+    if (rows.length === 0) {
+        dbTableBody.innerHTML = '<tr><td colspan="7" style="text-align:center;">No listings found in database.</td></tr>';
+        return;
+    }
+
+    rows.forEach(row => {
+        const tr = document.createElement('tr');
+        tr.innerHTML = `
+            <td>${row.bhk}</td>
+            <td><strong>${row.price}</strong></td>
+            <td>${row.seller_type}</td>
+            <td>${row.furnishing}</td>
+            <td>${row.posted_date}</td>
+            <td>${row.title}</td>
+            <td><a href="${row.url}" target="_blank" class="table-link">View Ad</a></td>
+        `;
+        dbTableBody.appendChild(tr);
+    });
+});
+
+closeDbModalBtn.addEventListener('click', () => {
+    dbModal.classList.remove('active');
+});
+
+// Close modals when clicking outside
+window.addEventListener('click', (event) => {
+    if (event.target == dbModal) {
+        dbModal.classList.remove('active');
+    }
 });
 
 // --- Callbacks from Python ---
