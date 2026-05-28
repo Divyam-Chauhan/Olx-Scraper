@@ -76,3 +76,14 @@ def get_listing_count():
     count = cursor.fetchone()[0]
     conn.close()
     return count
+
+def get_all_listings():
+    """Retrieve all scraped listings from the database."""
+    conn = get_connection()
+    c = conn.cursor()
+    # Fetch rows as dictionary-like objects
+    c.row_factory = sqlite3.Row
+    c.execute("SELECT * FROM listings ORDER BY scraped_at DESC")
+    rows = c.fetchall()
+    conn.close()
+    return [dict(row) for row in rows]
