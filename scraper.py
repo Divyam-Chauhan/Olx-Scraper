@@ -1,38 +1,75 @@
 """OLX Rental Scraper"""
 
-import sys
 import time
 import winsound
-from datetime import datetime
+import eel
 from urllib.parse import urljoin
 from playwright.sync_api import sync_playwright, TimeoutError as PlaywrightTimeout
 
 from config import (
-    BASE_URL,
     HEADLESS,
     PAGE_LOAD_TIMEOUT,
-    MAX_PAGES,
     CAPTCHA_INDICATORS,
     BEEP_FREQUENCY,
     BEEP_DURATION_MS,
-    MAX_BUDGET_PER_BHK,
 )
 from db import init_db, listing_exists, insert_listing, get_listing_count
 
+# Threading state variables
+stop_requested = False
+captcha_solved = False
+
+
+def log(msg, msg_type="system"):
+    """Helper to both print and send logs to Eel UI."""
+    print(msg)
+    try:
+        eel.log_message(msg, msg_type)
+    except Exception:
+        pass
+
+
+def update_ui_stats(processed, saved, duplicates):
+    """Helper to update stats in Eel UI."""
+    try:
+        eel.update_stats(processed, saved, duplicates)
+    except Exception:
+        pass
+
+
+def build_url(bhk_config):
+    """Build the dynamic OLX URL based on selected BHKs."""
+    rooms = []
+    for bhk in bhk_config.keys():
+        rooms.append(bhk)
+    
+    rooms.sort()
+    room_param = "_and_".join(rooms)
+    
+    return f"https://www.olx.in/en-in/jagatpura_g5333216/for-rent-houses-apartments_c1723?filter=bachelors_eq_yes%2Crooms_eq_{room_param}"
+
 
 def alert_and_pause():
-    """Trigger system beep and wait for user input."""
-    print("\n" + "=" * 60)
-    print("  CAPTCHA / BLOCK DETECTED!")
-    print("  Solve it in the browser window, then come back here.")
-    print("=" * 60)
+    """Trigger system beep and wait for user input from UI."""
+    global captcha_solved
+    captcha_solved = False
+    
+    log("CAPTCHA / BLOCK DETECTED! Waiting for manual resolution.", "warning")
+    
+    try:
+        eel.trigger_captcha_modal()
+    except Exception:
+        pass
 
     for _ in range(3):
         winsound.Beep(BEEP_FREQUENCY, BEEP_DURATION_MS)
         time.sleep(0.3)
 
-    input("\n>>> Press ENTER after solving the CAPTCHA to resume... ")
-    print("Resuming scraper...\n")
+    # Wait until the UI sets captcha_solved to True or stop is requested
+    while not captcha_solved and not stop_requested:
+        time.sleep(1)
+        
+    captcha_solved = False # reset for next time
 
 
 def is_captcha_present(page):
@@ -58,6 +95,8 @@ def is_captcha_present(page):
 def handle_captcha_if_present(page):
     """Pause execution if CAPTCHA is detected."""
     while is_captcha_present(page):
+        if stop_requested:
+            return
         alert_and_pause()
         time.sleep(2)  # Give the DOM a tiny moment to settle after manual solve
 
@@ -67,7 +106,7 @@ def safe_navigate(page, url):
     try:
         page.goto(url, wait_until="domcontentloaded", timeout=PAGE_LOAD_TIMEOUT)
     except PlaywrightTimeout:
-        print(f"Navigation timed out for: {url}")
+        log(f"Navigation timed out for: {url}", "warning")
 
     time.sleep(3)
     handle_captcha_if_present(page)
@@ -80,21 +119,22 @@ def extract_listing_cards(page):
     try:
         page.wait_for_selector('[data-aut-id="itemPrice"]', timeout=10000)
     except Exception:
-        print("Timeout waiting for itemPrice elements. Page might not have parsed DOM yet.")
+        log("Timeout waiting for itemPrice elements.", "warning")
     
-    time.sleep(2)  # Extra buffer for DOM hydration
+    time.sleep(2)
 
     card_elements = page.query_selector_all('li[data-aut-id="itemBox"]')
-
     if not card_elements:
         card_elements = page.query_selector_all('[data-aut-id="itemBox"]')
         
     if not card_elements:
-        # Fallback: Find any link pointing to an item that also contains a price
         all_links = page.query_selector_all('a[href*="/item/"]')
         card_elements = [link for link in all_links if link.query_selector('[data-aut-id="itemPrice"]')]
 
     for card in card_elements:
+        if stop_requested:
+            break
+            
         try:
             link_el = card.query_selector("a")
             if not link_el:
@@ -153,14 +193,12 @@ def scrape_detail_page(page, url):
     try:
         safe_navigate(page, url)
         
-        # Explicitly wait for the detail page DOM to hydrate. 
-        # The main title or seller info usually takes a few seconds to appear.
         try:
             page.wait_for_selector('h1', timeout=6000)
         except Exception:
             pass
             
-        time.sleep(3) # Extra buffer for slow connections loading the seller block
+        time.sleep(3)
 
         seller_type = "Unknown"
         try:
@@ -229,115 +267,135 @@ def go_to_next_page(page):
     return False
 
 
-def run_scraper():
-    """Main entry point."""
+def run_scraper(bhk_config, max_pages):
+    """Main entry point for scraping thread."""
+    global stop_requested
+    stop_requested = False
+    
     init_db()
     initial_count = get_listing_count()
-    print(f"Database initialized. Existing listings: {initial_count}")
-    print(f"Target URL: {BASE_URL}")
-    print("=" * 60)
+    
+    log(f"Database initialized. Existing listings: {initial_count}", "info")
+    
+    target_url = build_url(bhk_config)
+    log(f"Target URL: {target_url}", "system")
 
     saved = 0
     duplicates = 0
     processed = 0
 
-    with sync_playwright() as pw:
-        browser = pw.chromium.launch(headless=HEADLESS)
-        context = browser.new_context(
-            viewport={"width": 1280, "height": 900},
-            user_agent=(
-                "Mozilla/5.0 (Windows NT 10.0; Win64; x64) "
-                "AppleWebKit/537.36 (KHTML, like Gecko) "
-                "Chrome/120.0.0.0 Safari/537.36"
-            ),
-        )
-        page = context.new_page()
-        page.set_default_timeout(PAGE_LOAD_TIMEOUT)
+    try:
+        with sync_playwright() as pw:
+            browser = pw.chromium.launch(headless=HEADLESS)
+            context = browser.new_context(
+                viewport={"width": 1280, "height": 900},
+                user_agent=(
+                    "Mozilla/5.0 (Windows NT 10.0; Win64; x64) "
+                    "AppleWebKit/537.36 (KHTML, like Gecko) "
+                    "Chrome/120.0.0.0 Safari/537.36"
+                ),
+            )
+            page = context.new_page()
+            page.set_default_timeout(PAGE_LOAD_TIMEOUT)
 
-        print(f"\nNavigating to search page...")
-        safe_navigate(page, BASE_URL)
+            log("Navigating to search page...", "system")
+            safe_navigate(page, target_url)
 
-        for page_num in range(1, MAX_PAGES + 1):
-            print(f"\n--- Page {page_num} ---")
+            for page_num in range(1, max_pages + 1):
+                if stop_requested:
+                    log("Scraping stopped by user.", "warning")
+                    break
 
-            cards = extract_listing_cards(page)
-            print(f"Found {len(cards)} listing cards on this page.")
+                log(f"--- Scanning Page {page_num} ---", "info")
 
-            if not cards:
-                print("No cards found. Possibly end of results or page structure changed.")
-                break
+                cards = extract_listing_cards(page)
+                log(f"Found {len(cards)} listing cards on this page.", "system")
 
-            for card in cards:
-                processed += 1
-                listing_url = card["url"]
-                card_title = card["title"]
+                if not cards:
+                    log("No cards found. Possibly end of results or page structure changed.", "warning")
+                    break
 
-                print(f"\n  [{processed}] {card_title[:60]}...")
-
-                if listing_exists(listing_url):
-                    print("       -> SKIP (duplicate)")
-                    duplicates += 1
-                    continue
-
-                # --- Strict Budget Filter ---
-                try:
-                    # Strip non-numeric characters (like '₹', ',', spaces) to parse integer price
-                    clean_price = "".join(filter(str.isdigit, card["price"]))
-                    if clean_price:
-                        price_val = int(clean_price)
-                        bhk_num = card["bhk"].replace("BHK", "").strip()
+                for card in cards:
+                    if stop_requested:
+                        break
                         
-                        if bhk_num in MAX_BUDGET_PER_BHK:
-                            max_allowed = MAX_BUDGET_PER_BHK[bhk_num]
-                            if price_val > max_allowed:
-                                print(f"       -> SKIP (over budget: {card['bhk']} at ₹{price_val} > ₹{max_allowed} max)")
+                    processed += 1
+                    update_ui_stats(processed, saved, duplicates)
+                    
+                    listing_url = card["url"]
+                    card_title = card["title"]
+
+                    if listing_exists(listing_url):
+                        log(f"[{processed}] SKIP (duplicate) - {card_title[:40]}...", "skip")
+                        duplicates += 1
+                        update_ui_stats(processed, saved, duplicates)
+                        continue
+
+                    # Strict Budget Filter
+                    try:
+                        clean_price = "".join(filter(str.isdigit, card["price"]))
+                        if clean_price:
+                            price_val = int(clean_price)
+                            bhk_num = card["bhk"].replace("BHK", "").strip()
+                            
+                            # Use dynamic config from UI
+                            if bhk_num in bhk_config:
+                                min_allowed = bhk_config[bhk_num]["min"]
+                                max_allowed = bhk_config[bhk_num]["max"]
+                                
+                                if price_val < min_allowed or price_val > max_allowed:
+                                    log(f"[{processed}] SKIP (out of budget: {bhk_num}BHK at ₹{price_val})", "skip")
+                                    continue
+                            else:
+                                # We didn't select this BHK in the UI, but it appeared anyway
+                                log(f"[{processed}] SKIP (unselected BHK type: {bhk_num})", "skip")
                                 continue
-                except Exception:
-                    pass # Ignore parsing errors and keep checking for safety
+                                
+                    except Exception:
+                        pass # Ignore parsing errors and keep checking
 
-                # Open detail page in a new tab to preserve the search page state
-                detail_page = context.new_page()
-                detail_page.set_default_timeout(PAGE_LOAD_TIMEOUT)
-                
-                detail = scrape_detail_page(detail_page, listing_url)
-                
-                detail_page.close()
+                    log(f"[{processed}] Inspecting: {card_title[:40]}...", "system")
 
-                if not detail:
-                    print("       -> ERROR (could not load detail page, saving with defaults)")
-                    detail = {"seller_type": "Unknown", "furnishing": "Unknown"}
+                    detail_page = context.new_page()
+                    detail_page.set_default_timeout(PAGE_LOAD_TIMEOUT)
+                    detail = scrape_detail_page(detail_page, listing_url)
+                    detail_page.close()
 
-                listing_data = {
-                    "title": card["title"],
-                    "price": card["price"],
-                    "url": listing_url,
-                    "seller_type": detail.get("seller_type", "Unknown"),
-                    "posted_date": card["posted_date"],
-                    "bhk": card["bhk"],
-                    "furnishing": detail.get("furnishing", "Unknown"),
-                }
+                    if not detail:
+                        log("    -> ERROR (could not load detail page, using defaults)", "error")
+                        detail = {"seller_type": "Unknown", "furnishing": "Unknown"}
 
-                insert_listing(listing_data)
-                saved += 1
-                print(f"       -> SAVED | {card['bhk']} | {listing_data['price']} | {listing_data['seller_type']}")
+                    listing_data = {
+                        "title": card["title"],
+                        "price": card["price"],
+                        "url": listing_url,
+                        "seller_type": detail.get("seller_type", "Unknown"),
+                        "posted_date": card["posted_date"],
+                        "bhk": card["bhk"],
+                        "furnishing": detail.get("furnishing", "Unknown"),
+                    }
 
-            if not go_to_next_page(page):
-                print("\nNo more pages available.")
-                break
+                    insert_listing(listing_data)
+                    saved += 1
+                    update_ui_stats(processed, saved, duplicates)
+                    log(f"    -> SAVED | {card['bhk']} | {listing_data['price']} | {listing_data['seller_type']}", "success")
 
-        browser.close()
+                if stop_requested:
+                    break
+
+                if not go_to_next_page(page):
+                    log("No more pages available.", "info")
+                    break
+
+            browser.close()
+            
+    except Exception as e:
+        log(f"Scraper encountered an error: {str(e)}", "error")
 
     final_count = get_listing_count()
-
-    print("\n" + "=" * 60)
-    print("  SCRAPING COMPLETE")
-    print("=" * 60)
-    print(f"  Listings examined : {processed}")
-    print(f"  New listings saved: {saved}")
-    print(f"  Skipped (duplicate): {duplicates}")
-    print(f"  Total in database  : {final_count}")
-    print("=" * 60)
-
-
-if __name__ == "__main__":
-    run_scraper()
+    
+    msg = f"SCRAPING COMPLETE. Processed: {processed}, Saved: {saved}, Total in DB: {final_count}"
+    try:
+        eel.on_scraping_finished(msg)
+    except Exception:
+        log(msg, "success")
