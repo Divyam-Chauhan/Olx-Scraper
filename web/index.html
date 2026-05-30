@@ -190,7 +190,10 @@
                 style="max-width: 95%; max-height: 90vh; display: flex; flex-direction: column;">
                 <div class="modal-header"
                     style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 20px;">
-                    <h2>Scraped Database</h2>
+                    <div style="display: flex; align-items: center; gap: 16px;">
+                        <h2>Scraped Database</h2>
+                        <button id="delete-selected-btn" class="primary-btn warning-btn" style="padding: 6px 12px; font-size: 13px; display: none;">Delete Selected</button>
+                    </div>
                     <button id="close-db-modal" class="close-btn"
                         style="background:none; border:none; font-size:28px; cursor:pointer;">&times;</button>
                 </div>
@@ -198,6 +201,9 @@
                     <table id="db-table" style="width: 100%; border-collapse: collapse; font-size: 14px;">
                         <thead>
                             <tr>
+                                <th
+                                    style="background:var(--bg-page); padding:10px; border:1px solid var(--border); position:sticky; top:0; z-index:1; width:40px; text-align:center;">
+                                    <input type="checkbox" id="select-all-db"></th>
                                 <th
                                     style="background:var(--bg-page); padding:10px; border:1px solid var(--border); position:sticky; top:0; z-index:1;">
                                     BHK</th>

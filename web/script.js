@@ -180,24 +180,19 @@ resumeBtn.addEventListener('click', () => {
 });
 
 // Database Viewer Logic
-viewDbBtn.addEventListener('click', async () => {
-    // Show modal and loading state
-    dbModal.classList.add('active');
-    dbTableBody.innerHTML = '<tr><td colspan="8" style="text-align:center;">Loading database...</td></tr>';
 
-    // Fetch data from python backend
-    const rows = await eel.fetch_database()();
-
-    // Render table
+const renderDatabaseTable = (rows) => {
     dbTableBody.innerHTML = '';
     if (rows.length === 0) {
-        dbTableBody.innerHTML = '<tr><td colspan="7" style="text-align:center;">No listings found in database.</td></tr>';
+        dbTableBody.innerHTML = '<tr><td colspan="8" style="text-align:center;">No listings found in database.</td></tr>';
+        document.getElementById('delete-selected-btn').style.display = 'none';
         return;
     }
 
     rows.forEach(row => {
         const tr = document.createElement('tr');
         tr.innerHTML = `
+            <td style="text-align:center;"><input type="checkbox" class="db-row-checkbox" value="${row.id}"></td>
             <td>${row.bhk}</td>
             <td><strong>${row.price}</strong></td>
             <td>${row.seller_type}</td>
@@ -208,6 +203,58 @@ viewDbBtn.addEventListener('click', async () => {
         `;
         dbTableBody.appendChild(tr);
     });
+
+    // Wire up row checkboxes to show/hide delete button
+    const rowCheckboxes = document.querySelectorAll('.db-row-checkbox');
+    const selectAllCheckbox = document.getElementById('select-all-db');
+    const deleteBtn = document.getElementById('delete-selected-btn');
+    
+    selectAllCheckbox.checked = false;
+    deleteBtn.style.display = 'none';
+
+    const updateDeleteBtn = () => {
+        const checkedCount = document.querySelectorAll('.db-row-checkbox:checked').length;
+        deleteBtn.style.display = checkedCount > 0 ? 'block' : 'none';
+        deleteBtn.innerText = `Delete Selected (${checkedCount})`;
+        selectAllCheckbox.checked = checkedCount === rowCheckboxes.length && rowCheckboxes.length > 0;
+    };
+
+    rowCheckboxes.forEach(cb => cb.addEventListener('change', updateDeleteBtn));
+
+    selectAllCheckbox.addEventListener('change', (e) => {
+        rowCheckboxes.forEach(cb => cb.checked = e.target.checked);
+        updateDeleteBtn();
+    });
+};
+
+const loadDatabase = async () => {
+    // Show loading state
+    dbTableBody.innerHTML = '<tr><td colspan="8" style="text-align:center;">Loading database...</td></tr>';
+    document.getElementById('select-all-db').checked = false;
+    document.getElementById('delete-selected-btn').style.display = 'none';
+
+    // Fetch data from python backend
+    const rows = await eel.fetch_database()();
+    renderDatabaseTable(rows);
+};
+
+// Database Viewer Logic
+viewDbBtn.addEventListener('click', async () => {
+    dbModal.classList.add('active');
+    await loadDatabase();
+});
+
+// Delete Selected Logic
+document.getElementById('delete-selected-btn').addEventListener('click', async () => {
+    const selectedIds = Array.from(document.querySelectorAll('.db-row-checkbox:checked'))
+                            .map(cb => parseInt(cb.value));
+    
+    if (selectedIds.length === 0) return;
+
+    if (confirm(`Are you sure you want to delete ${selectedIds.length} listings?`)) {
+        await eel.delete_selected_listings(selectedIds)();
+        await loadDatabase(); // Refresh table
+    }
 });
 
 closeDbModalBtn.addEventListener('click', () => {
