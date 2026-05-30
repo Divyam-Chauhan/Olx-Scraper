@@ -1,5 +1,6 @@
 <!DOCTYPE html>
 <html lang="en">
+
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
@@ -8,14 +9,18 @@
     <link rel="stylesheet" href="style.css">
     <script type="text/javascript" src="/eel.js"></script>
 </head>
+
 <body>
     <div class="app-container">
         <header>
             <div class="logo">
                 <svg width="28" height="28" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg">
-                    <path d="M12 2L2 7L12 12L22 7L12 2Z" stroke="#002f34" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"/>
-                    <path d="M2 17L12 22L22 17" stroke="#002f34" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"/>
-                    <path d="M2 12L12 17L22 12" stroke="#002f34" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"/>
+                    <path d="M12 2L2 7L12 12L22 7L12 2Z" stroke="#002f34" stroke-width="2.5" stroke-linecap="round"
+                        stroke-linejoin="round" />
+                    <path d="M2 17L12 22L22 17" stroke="#002f34" stroke-width="2.5" stroke-linecap="round"
+                        stroke-linejoin="round" />
+                    <path d="M2 12L12 17L22 12" stroke="#002f34" stroke-width="2.5" stroke-linecap="round"
+                        stroke-linejoin="round" />
                 </svg>
                 <h1>OLX Scraper</h1>
             </div>
@@ -29,11 +34,17 @@
             <div class="left-panel">
                 <div class="card settings-card">
                     <h2>Scraper Settings</h2>
-                    
+
                     <div class="form-group">
-                        <label for="location-query">City / Area Location</label>
-                        <input type="text" id="location-query" placeholder="e.g. Hiran Magri, Udaipur" style="width: 100%; padding: 12px; border: 1px solid var(--border); border-radius: 8px; background: var(--bg-page); color: var(--text-primary); outline: none;">
-                        <small><strong>Tip:</strong> The app will automatically search this and lock onto the exact geographic area.</small>
+                        <div class="url-label-row">
+                            <label for="location-url">OLX Location URL</label>
+                            <button id="how-to-btn" class="how-to-btn" title="How to get this URL?">How to get this? →</button>
+                        </div>
+                        <div class="url-input-wrapper">
+                            <input type="text" id="location-url" placeholder="Paste your OLX location URL here...">
+                            <div id="url-status" class="url-status"></div>
+                        </div>
+                        <small id="url-hint">Paste the URL from OLX after selecting your exact neighborhood from the sidebar.</small>
                     </div>
 
                     <h3 class="section-title">BHK Filters & Budget</h3>
@@ -81,7 +92,9 @@
                     <div class="actions">
                         <button id="start-btn" class="primary-btn">Start Scraping</button>
                         <button id="stop-btn" class="secondary-btn" style="display: none;">Stop Scraping</button>
-                        <button id="view-db-btn" class="btn btn-outline" style="margin-top:10px; width:100%; border:1px solid var(--primary-color); padding:10px; background:transparent; color:var(--primary-color); border-radius:6px; cursor:pointer; font-weight:600;">View Database</button>
+                        <button id="view-db-btn" class="btn btn-outline"
+                            style="margin-top:10px; width:100%; border:1px solid var(--primary-color); padding:10px; background:transparent; color:var(--primary-color); border-radius:6px; cursor:pointer; font-weight:600;">View
+                            Database</button>
                     </div>
                 </div>
             </div>
@@ -91,7 +104,12 @@
                     <div class="log-header">
                         <h2>Activity Log</h2>
                         <button id="clear-log-btn" class="icon-btn" title="Clear Logs">
-                            <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M3 6h18M19 6v14a2 2 0 01-2 2H7a2 2 0 01-2-2V6m3 0V4a2 2 0 012-2h4a2 2 0 012 2v2"></path></svg>
+                            <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor"
+                                stroke-width="2">
+                                <path
+                                    d="M3 6h18M19 6v14a2 2 0 01-2 2H7a2 2 0 01-2-2V6m3 0V4a2 2 0 012-2h4a2 2 0 012 2v2">
+                                </path>
+                            </svg>
                         </button>
                     </div>
                     <div class="terminal" id="terminal">
@@ -115,25 +133,92 @@
                 </div>
             </div>
         </main>
-        
+
+        <!-- Guide Modal -->
+        <div id="guide-modal" class="modal-overlay">
+            <div class="modal-content card guide-modal-content">
+                <div class="modal-header" style="display:flex; justify-content:space-between; align-items:center; margin-bottom:24px;">
+                    <h2 style="font-size:20px;">How to Get Your OLX Location URL</h2>
+                    <button id="close-guide-modal" class="close-btn" style="background:none;border:none;font-size:28px;cursor:pointer;color:var(--text-main);">&times;</button>
+                </div>
+
+                <div class="guide-steps">
+                    <!-- Step 1 -->
+                    <div class="guide-step">
+                        <div class="guide-step-header">
+                            <div class="step-number">1</div>
+                            <div>
+                                <h3>Open OLX & Click "For Rent: Houses &amp; Apartments"</h3>
+                                <p>Go to <strong>olx.in</strong> and click the category from the top navigation bar.</p>
+                            </div>
+                        </div>
+                        <img src="guide_step1.png" alt="Step 1: Click For Rent category" class="guide-img">
+                    </div>
+
+                    <!-- Step 2 -->
+                    <div class="guide-step">
+                        <div class="guide-step-header">
+                            <div class="step-number">2</div>
+                            <div>
+                                <h3>Select Your Exact Neighborhood from the Sidebar</h3>
+                                <p>On the left side, expand the <strong>LOCATIONS</strong> tree and click your exact neighborhood (e.g., Hiranmagri, Sundarpur).</p>
+                            </div>
+                        </div>
+                        <img src="guide_step2.png" alt="Step 2: Click neighborhood in sidebar" class="guide-img">
+                    </div>
+
+                    <!-- Step 3 -->
+                    <div class="guide-step">
+                        <div class="guide-step-header">
+                            <div class="step-number">3</div>
+                            <div>
+                                <h3>Copy the URL from Your Browser's Address Bar</h3>
+                                <p>The URL will look like <code>olx.in/en-in/<strong>sundarpur_g5343637</strong>/for-rent-houses-apartments_c1723</code>. Copy and paste it into the box.</p>
+                            </div>
+                        </div>
+                        <img src="guide_step3.png" alt="Step 3: Copy the URL" class="guide-img">
+                    </div>
+                </div>
+
+                <a href="https://www.olx.in/en-in/for-rent-houses-apartments_c1723" target="_blank" class="open-olx-btn">Open OLX Now →</a>
+            </div>
+        </div>
+
         <!-- DB Viewer Modal -->
         <div id="db-modal" class="modal-overlay">
-            <div class="modal-content card db-modal-content" style="max-width: 95%; max-height: 90vh; display: flex; flex-direction: column;">
-                <div class="modal-header" style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 20px;">
+            <div class="modal-content card db-modal-content"
+                style="max-width: 95%; max-height: 90vh; display: flex; flex-direction: column;">
+                <div class="modal-header"
+                    style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 20px;">
                     <h2>Scraped Database</h2>
-                    <button id="close-db-modal" class="close-btn" style="background:none; border:none; font-size:28px; cursor:pointer;">&times;</button>
+                    <button id="close-db-modal" class="close-btn"
+                        style="background:none; border:none; font-size:28px; cursor:pointer;">&times;</button>
                 </div>
                 <div class="table-responsive" style="overflow-x: auto; overflow-y: auto; flex-grow: 1;">
                     <table id="db-table" style="width: 100%; border-collapse: collapse; font-size: 14px;">
                         <thead>
                             <tr>
-                                <th style="background:var(--bg-page); padding:10px; border:1px solid var(--border); position:sticky; top:0; z-index:1;">BHK</th>
-                                <th style="background:var(--bg-page); padding:10px; border:1px solid var(--border); position:sticky; top:0; z-index:1;">Price</th>
-                                <th style="background:var(--bg-page); padding:10px; border:1px solid var(--border); position:sticky; top:0; z-index:1;">Seller</th>
-                                <th style="background:var(--bg-page); padding:10px; border:1px solid var(--border); position:sticky; top:0; z-index:1;">Furnishing</th>
-                                <th style="background:var(--bg-page); padding:10px; border:1px solid var(--border); position:sticky; top:0; z-index:1;">Posted Date</th>
-                                <th style="background:var(--bg-page); padding:10px; border:1px solid var(--border); position:sticky; top:0; z-index:1;">Title</th>
-                                <th style="background:var(--bg-page); padding:10px; border:1px solid var(--border); position:sticky; top:0; z-index:1;">Link</th>
+                                <th
+                                    style="background:var(--bg-page); padding:10px; border:1px solid var(--border); position:sticky; top:0; z-index:1;">
+                                    BHK</th>
+                                <th
+                                    style="background:var(--bg-page); padding:10px; border:1px solid var(--border); position:sticky; top:0; z-index:1;">
+                                    Price</th>
+                                <th
+                                    style="background:var(--bg-page); padding:10px; border:1px solid var(--border); position:sticky; top:0; z-index:1;">
+                                    Seller</th>
+                                <th
+                                    style="background:var(--bg-page); padding:10px; border:1px solid var(--border); position:sticky; top:0; z-index:1;">
+                                    Furnishing</th>
+                                <th
+                                    style="background:var(--bg-page); padding:10px; border:1px solid var(--border); position:sticky; top:0; z-index:1;">
+                                    Posted Date</th>
+                                <th
+                                    style="background:var(--bg-page); padding:10px; border:1px solid var(--border); position:sticky; top:0; z-index:1;">
+                                    Title</th>
+                                <th
+                                    style="background:var(--bg-page); padding:10px; border:1px solid var(--border); position:sticky; top:0; z-index:1;">
+                                    Link</th>
                             </tr>
                         </thead>
                         <tbody id="db-table-body">
@@ -148,14 +233,20 @@
         <div id="captcha-modal" class="modal-overlay">
             <div class="modal-content card">
                 <div class="warning-icon">
-                    <svg width="48" height="48" viewBox="0 0 24 24" fill="none" stroke="#F59E0B" stroke-width="2"><path d="M10.29 3.86L1.82 18a2 2 0 001.71 3h16.94a2 2 0 001.71-3L13.71 3.86a2 2 0 00-3.42 0zM12 9v4m0 4h.01"></path></svg>
+                    <svg width="48" height="48" viewBox="0 0 24 24" fill="none" stroke="#F59E0B" stroke-width="2">
+                        <path
+                            d="M10.29 3.86L1.82 18a2 2 0 001.71 3h16.94a2 2 0 001.71-3L13.71 3.86a2 2 0 00-3.42 0zM12 9v4m0 4h.01">
+                        </path>
+                    </svg>
                 </div>
                 <h2>CAPTCHA / Block Detected!</h2>
-                <p>The scraper has been paused. Please switch to the opened Chromium browser window and solve the CAPTCHA manually to prove you are human.</p>
+                <p>The scraper has been paused. Please switch to the opened Chromium browser window and solve the
+                    CAPTCHA manually to prove you are human.</p>
                 <button id="resume-btn" class="primary-btn warning-btn">I've Solved It — Resume Scraping</button>
             </div>
         </div>
     </div>
     <script src="script.js"></script>
 </body>
+
 </html>
