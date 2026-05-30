@@ -51,58 +51,6 @@ def build_url(base_geo_url, bhk_config):
     return f"{base_geo_url}?filter=bachelors_eq_yes%2Crooms_eq_{room_param}"
 
 
-def auto_resolve_location(location_query):
-    """Use a headless browser to type the query into OLX and grab the exact geographic URL."""
-    try:
-        log(f"Auto-resolving location: '{location_query}'...", "system")
-        with sync_playwright() as pw:
-            # Use the global HEADLESS config to avoid Cloudflare blocks
-            browser = pw.chromium.launch(headless=HEADLESS)
-            context = browser.new_context(
-                user_agent="Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36"
-            )
-            page = context.new_page()
-
-            page.goto("https://www.olx.in/en-in/for-rent-houses-apartments_c1723", timeout=30000)
-
-            # Click and fill the location search input
-            loc_input = page.locator('[data-aut-id="locationSearch"]')
-            loc_input.click()
-            loc_input.fill(location_query)
-
-            # Wait for suggestions to appear
-            try:
-                suggestion = page.locator('li[data-aut-id="suggestion"]').first
-                suggestion.wait_for(state="visible", timeout=10000)
-                suggestion.click()
-            except PlaywrightTimeout:
-                log("Failed to automatically find location suggestions on OLX.", "error")
-                browser.close()
-                return None
-
-            # Wait for URL to change to a geographic node
-            target_url = None
-            for _ in range(15):
-                time.sleep(1)
-                current_url = page.url
-                if "_g" in current_url and current_url != "https://www.olx.in/en-in/for-rent-houses-apartments_c1723":
-                    target_url = current_url
-                    break
-
-            browser.close()
-
-            if target_url:
-                log(f"Location resolved successfully to: {target_url.split('/en-in/')[1].split('/')[0]}", "success")
-                return target_url
-            else:
-                log("Could not lock onto geographic URL.", "error")
-                return None
-
-    except Exception as e:
-        log(f"Error resolving location automatically: {e}", "error")
-        return None
-
-
 def alert_and_pause():
     """Trigger system beep and wait for user input from UI."""
     global captcha_solved
@@ -323,15 +271,15 @@ def go_to_next_page(page):
     return False
 
 
-def run_scraper(location_query, bhk_config, max_pages):
+def run_scraper(geo_url, bhk_config, max_pages):
     """Main entry point for scraping thread."""
     global stop_requested
     stop_requested = False
     
-    if not location_query:
-        log("No location provided.", "error")
+    if not geo_url:
+        log("No location URL provided. Please paste an OLX location URL.", "error")
         try:
-            eel.on_scraping_finished("Failed: No location.")
+            eel.on_scraping_finished("Failed: No location URL.")
         except Exception:
             pass
         return
@@ -341,21 +289,8 @@ def run_scraper(location_query, bhk_config, max_pages):
     
     log(f"Database initialized. Existing listings: {initial_count}", "info")
     
-    # 1. Resolve Text -> Geographic URL
-    base_geo_url = auto_resolve_location(location_query)
-    if not base_geo_url:
-        log("Could not resolve location. Stopping scraper.", "error")
-        try:
-            eel.on_scraping_finished("Failed: Bad location.")
-        except Exception:
-            pass
-        return
-
-    if stop_requested:
-        return
-
-    # 2. Build final filters
-    target_url = build_url(base_geo_url, bhk_config)
+    # Build the final URL with BHK filters applied to the user's geographic URL
+    target_url = build_url(geo_url, bhk_config)
     log(f"Dynamic Target URL: {target_url}", "system")
 
     saved = 0

@@ -1,8 +1,6 @@
 import sys
 import eel
 import threading
-import time
-from playwright.sync_api import sync_playwright
 import scraper
 import db
 
@@ -17,7 +15,7 @@ scraper_thread = None
 @eel.expose
 def start_scraping(config):
     global scraper_thread
-    location_query = config.get("location_query", "")
+    geo_url = config.get("geo_url", "")
     bhk_config = config.get("bhk_config", {})
     max_pages = config.get("max_pages", 50)
 
@@ -28,7 +26,7 @@ def start_scraping(config):
     # Run in a background thread to keep UI responsive
     scraper_thread = threading.Thread(
         target=scraper.run_scraper,
-        args=(location_query, bhk_config, max_pages),
+        args=(geo_url, bhk_config, max_pages),
         daemon=True
     )
     scraper_thread.start()
