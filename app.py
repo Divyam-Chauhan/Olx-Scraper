@@ -68,6 +68,12 @@ def fetch_database():
     """Fetch all listings from the database and send to frontend."""
     return db.get_all_listings()
 
+@eel.expose
+def delete_selected_listings(ids):
+    """Delete selected listings and return success."""
+    db.delete_listings(ids)
+    return True
+
 def close_callback(route, websockets):
     if not websockets:
         print("UI window closed. Shutting down cleanly...")
