@@ -7,8 +7,19 @@ import db
 # Force Windows console to use UTF-8 to prevent charmap errors on Rupee symbols
 sys.stdout.reconfigure(encoding='utf-8')
 
-# Initialize eel with the web directory
-eel.init('web')
+import os
+
+def resource_path(relative_path):
+    """Get absolute path to resource, works for dev and for PyInstaller"""
+    try:
+        # PyInstaller creates a temp folder and stores path in _MEIPASS
+        base_path = sys._MEIPASS
+    except Exception:
+        base_path = os.path.abspath(".")
+    return os.path.join(base_path, relative_path)
+
+# Initialize eel with the dynamically resolved web directory path
+eel.init(resource_path('web'))
 
 scraper_thread = None
 
