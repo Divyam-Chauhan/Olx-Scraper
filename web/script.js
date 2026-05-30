@@ -20,7 +20,14 @@ const statusDot = document.getElementById('status-dot');
 const statusText = document.getElementById('status-text');
 const captchaModal = document.getElementById('captcha-modal');
 const resumeBtn = document.getElementById('resume-btn');
-const locationInput = document.getElementById('location-query');
+
+// BYOU URL Elements
+const locationUrlInput = document.getElementById('location-url');
+const urlStatus = document.getElementById('url-status');
+const urlHint = document.getElementById('url-hint');
+const howToBtn = document.getElementById('how-to-btn');
+const guideModal = document.getElementById('guide-modal');
+const closeGuideBtn = document.getElementById('close-guide-modal');
 
 // DB Modal Elements
 const dbModal = document.getElementById('db-modal');
@@ -32,6 +39,64 @@ const dbTableBody = document.getElementById('db-table-body');
 const statProcessed = document.getElementById('stat-processed');
 const statSaved = document.getElementById('stat-saved');
 const statDuplicates = document.getElementById('stat-duplicates');
+
+// === URL Validator ===
+function validateOlxUrl(url) {
+    if (!url) return { valid: false, location: null, cleanUrl: null };
+    
+    // Match geographic node pattern: anything_gXXXXXX
+    const geoMatch = url.match(/\/([a-z0-9-]+_g\d+)\//i);
+    if (!geoMatch) return { valid: false, location: null, cleanUrl: null };
+    
+    // Extract the geographic slug
+    const geoSlug = geoMatch[1];
+    
+    // Make the location name readable: "sundarpur_g5343637" -> "Sundarpur"
+    const locationName = geoSlug
+        .split('_g')[0]
+        .replace(/-/g, ' ')
+        .replace(/\b\w/g, c => c.toUpperCase());
+    
+    // Build a clean base URL from the geo slug
+    const cleanUrl = `https://www.olx.in/en-in/${geoSlug}/for-rent-houses-apartments_c1723`;
+    
+    return { valid: true, location: locationName, cleanUrl: cleanUrl };
+}
+
+// Live URL validation on input
+locationUrlInput.addEventListener('input', () => {
+    const val = locationUrlInput.value.trim();
+    if (!val) {
+        locationUrlInput.classList.remove('valid', 'invalid');
+        urlStatus.textContent = '';
+        urlHint.textContent = 'Paste the URL from OLX after selecting your exact neighborhood from the sidebar.';
+        urlHint.className = '';
+        return;
+    }
+    
+    const result = validateOlxUrl(val);
+    if (result.valid) {
+        locationUrlInput.classList.add('valid');
+        locationUrlInput.classList.remove('invalid');
+        urlStatus.textContent = '\u2705';
+        urlHint.textContent = `\u2705 Location Detected: ${result.location}`;
+        urlHint.className = 'valid';
+    } else {
+        locationUrlInput.classList.add('invalid');
+        locationUrlInput.classList.remove('valid');
+        urlStatus.textContent = '\u274C';
+        urlHint.textContent = '\u274C Invalid URL \u2014 make sure you select a neighborhood from the sidebar, not the search bar.';
+        urlHint.className = 'invalid';
+    }
+});
+
+// === Guide Modal ===
+howToBtn.addEventListener('click', () => {
+    guideModal.classList.add('active');
+});
+closeGuideBtn.addEventListener('click', () => {
+    guideModal.classList.remove('active');
+});
 
 function log(message, type = 'system') {
     const el = document.createElement('div');
@@ -52,15 +117,17 @@ clearBtn.addEventListener('click', () => {
 
 // Start Scraping
 startBtn.addEventListener('click', async () => {
-    const locationQuery = locationInput.value.trim();
-    if (!locationQuery) {
-        log("Please enter a valid location.", "error");
+    const rawUrl = locationUrlInput.value.trim();
+    const result = validateOlxUrl(rawUrl);
+    
+    if (!rawUrl || !result.valid) {
+        log("Please paste a valid OLX location URL. Click 'How to get this?' for help.", "error");
         return;
     }
 
     // Gather config
     const config = {
-        location_query: locationQuery,
+        geo_url: result.cleanUrl,
         bhk_config: {},
         max_pages: parseInt(document.getElementById('max-pages').value) || 50
     };
@@ -92,7 +159,7 @@ startBtn.addEventListener('click', async () => {
     statSaved.innerText = '0';
     statDuplicates.innerText = '0';
     
-    log("Starting scraper...", "info");
+    log(`Starting scraper for: ${result.location}...`, "info");
     
     // Call Python backend
     await eel.start_scraping(config)();
@@ -151,6 +218,9 @@ closeDbModalBtn.addEventListener('click', () => {
 window.addEventListener('click', (event) => {
     if (event.target == dbModal) {
         dbModal.classList.remove('active');
+    }
+    if (event.target == guideModal) {
+        guideModal.classList.remove('active');
     }
 });
 
