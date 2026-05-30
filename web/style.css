@@ -277,6 +277,16 @@ button {
     transition: all 0.2s;
 }
 
+button:disabled {
+    opacity: 0.65;
+    cursor: not-allowed;
+    transform: none !important;
+}
+
+button.is-loading {
+    opacity: 0.85;
+}
+
 .primary-btn {
     background-color: var(--primary);
     color: white;
