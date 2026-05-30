@@ -4,8 +4,9 @@ import threading
 import scraper
 import db
 
-# Force Windows console to use UTF-8 to prevent charmap errors on Rupee symbols
-sys.stdout.reconfigure(encoding='utf-8')
+# Force Windows console to use UTF-8 to prevent charmap errors on Rupee symbols (only if console exists)
+if sys.stdout is not None:
+    sys.stdout.reconfigure(encoding='utf-8')
 
 import os
 
@@ -14,6 +15,8 @@ def resource_path(relative_path):
     try:
         # PyInstaller creates a temp folder and stores path in _MEIPASS
         base_path = sys._MEIPASS
+        # Fix Playwright looking for browsers inside the frozen _internal folder
+        os.environ.setdefault("PLAYWRIGHT_BROWSERS_PATH", os.path.join(os.path.expanduser("~"), "AppData", "Local", "ms-playwright"))
     except Exception:
         base_path = os.path.abspath(".")
     return os.path.join(base_path, relative_path)
