@@ -40,6 +40,20 @@ const statProcessed = document.getElementById('stat-processed');
 const statSaved = document.getElementById('stat-saved');
 const statDuplicates = document.getElementById('stat-duplicates');
 
+let activeRunStage = 'idle';
+
+function setActiveRunState(status, dotClass = 'dot running', stopLabel = 'Stop Scraping') {
+    activeRunStage = status;
+    startBtn.disabled = true;
+    startBtn.classList.add('is-loading');
+    startBtn.style.display = 'none';
+    stopBtn.disabled = false;
+    stopBtn.innerText = stopLabel;
+    stopBtn.style.display = 'block';
+    statusDot.className = dotClass;
+    statusText.innerText = status;
+}
+
 // === URL Validator ===
 function validateOlxUrl(url) {
     if (!url) return { valid: false, location: null, cleanUrl: null };
@@ -149,27 +163,30 @@ startBtn.addEventListener('click', async () => {
         return;
     }
 
-    startBtn.style.display = 'none';
-    stopBtn.style.display = 'block';
-    statusDot.className = 'dot running';
-    statusText.innerText = 'Scraping...';
+    setActiveRunState('Preparing browser...', 'dot warning', 'Cancel Setup');
 
     // Reset stats
     statProcessed.innerText = '0';
     statSaved.innerText = '0';
     statDuplicates.innerText = '0';
     
-    log(`Starting scraper for: ${result.location}...`, "info");
+    log(`Preparing scraper for: ${result.location}...`, "info");
     
     // Call Python backend
-    await eel.start_scraping(config)();
+    try {
+        await eel.start_scraping(config)();
+    } catch (error) {
+        log(`Could not start scraper: ${error}`, "error");
+        resetUI();
+    }
 });
 
 // Stop Scraping
 stopBtn.addEventListener('click', () => {
     log("Sending stop signal...", "warning");
+    setActiveRunState('Stopping...', 'dot warning', 'Stopping...');
+    stopBtn.disabled = true;
     eel.stop_scraping()();
-    resetUI();
 });
 
 // Resume from Captcha
@@ -291,6 +308,38 @@ function on_scraping_finished(message) {
     resetUI();
 }
 
+eel.expose(on_browser_setup_started);
+function on_browser_setup_started() {
+    setActiveRunState('Preparing browser...', 'dot warning', 'Cancel Setup');
+    log("Preparing Playwright browser...", "info");
+}
+
+eel.expose(on_browser_setup_progress);
+function on_browser_setup_progress(message) {
+    if (message.toLowerCase().includes('download')) {
+        setActiveRunState('Downloading browser...', 'dot warning', 'Cancel Download');
+    }
+    log(message, "info");
+}
+
+eel.expose(on_browser_setup_finished);
+function on_browser_setup_finished() {
+    setActiveRunState('Browser ready...', 'dot running', 'Stop Scraping');
+}
+
+eel.expose(on_browser_setup_failed);
+function on_browser_setup_failed(message) {
+    const type = message.toLowerCase().includes('cancel') ? "warning" : "error";
+    log(message, type);
+    resetUI();
+}
+
+eel.expose(on_scraper_started);
+function on_scraper_started() {
+    setActiveRunState('Scraping...', 'dot running', 'Stop Scraping');
+    log("Browser ready. Starting scraper...", "info");
+}
+
 eel.expose(trigger_captcha_modal);
 function trigger_captcha_modal() {
     captchaModal.classList.add('active');
@@ -300,8 +349,13 @@ function trigger_captcha_modal() {
 }
 
 function resetUI() {
+    activeRunStage = 'idle';
     startBtn.style.display = 'block';
+    startBtn.disabled = false;
+    startBtn.classList.remove('is-loading');
     stopBtn.style.display = 'none';
+    stopBtn.disabled = false;
+    stopBtn.innerText = 'Stop Scraping';
     statusDot.className = 'dot';
     statusText.innerText = 'Ready';
 }
