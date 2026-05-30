@@ -30,6 +30,16 @@ def start_scraping(config):
     bhk_config = config.get("bhk_config", {})
     max_pages = config.get("max_pages", 50)
 
+    # --- NEW SAFETY CHECK ---
+    if scraper_thread and scraper_thread.is_alive():
+        print("Scraper is already running or shutting down!")
+        try:
+            eel.on_scraping_finished("Error: Scraper is still shutting down. Please wait 5 seconds and try again.")
+        except Exception:
+            pass
+        return
+    # ------------------------
+
     # Reset state
     scraper.stop_requested = False
     scraper.captcha_solved = False
@@ -55,10 +65,16 @@ def fetch_database():
     """Fetch all listings from the database and send to frontend."""
     return db.get_all_listings()
 
+def close_callback(route, websockets):
+    if not websockets:
+        print("UI window closed. Shutting down cleanly...")
+        scraper.stop_requested = True
+        sys.exit(0)
+
 if __name__ == '__main__':
     try:
         # Start the app. port=0 picks an available random port to avoid conflicts.
-        eel.start('index.html', size=(1100, 750), port=0)
+        eel.start('index.html', size=(1100, 750), port=0, close_callback=close_callback)
     except (SystemExit, KeyboardInterrupt):
         print("Application closed.")
         sys.exit(0)

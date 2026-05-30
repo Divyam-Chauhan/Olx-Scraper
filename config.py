@@ -27,7 +27,14 @@ MAX_BUDGET_PER_BHK = {
     "3": 20000
 }
 
-DB_PATH = "olx_rentals.db"
+import os
+import pathlib
+
+# Get the user's Documents folder dynamically so the .exe can save data reliably
+DOCUMENTS_DIR = os.path.join(pathlib.Path.home(), "Documents", "OLX_Scraper")
+os.makedirs(DOCUMENTS_DIR, exist_ok=True)
+
+DB_PATH = os.path.join(DOCUMENTS_DIR, "olx_rentals.db")
 
 HEADLESS = False
 
