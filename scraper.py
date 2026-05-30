@@ -354,7 +354,11 @@ def run_scraper(geo_url, bhk_config, max_pages):
                         clean_price = "".join(filter(str.isdigit, card["price"]))
                         if clean_price:
                             price_val = int(clean_price)
-                            bhk_num = card["bhk"].replace("BHK", "").strip()
+                            
+                            # Use regex to extract the number from strings like "2 Bds" or "1 RK"
+                            import re
+                            bhk_match = re.search(r'\d+', card["bhk"])
+                            bhk_num = bhk_match.group() if bhk_match else "0"
                             
                             if bhk_num in bhk_config:
                                 min_allowed = bhk_config[bhk_num]["min"]
