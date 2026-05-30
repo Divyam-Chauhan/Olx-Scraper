@@ -42,6 +42,18 @@ def listing_exists(url):
     conn.close()
     return result is not None
 
+def delete_listings(listing_ids):
+    """Delete multiple listings by their IDs."""
+    if not listing_ids:
+        return
+    conn = get_connection()
+    cursor = conn.cursor()
+    # Create the correct number of parameter placeholders
+    placeholders = ','.join('?' * len(listing_ids))
+    cursor.execute(f"DELETE FROM listings WHERE id IN ({placeholders})", listing_ids)
+    conn.commit()
+    conn.close()
+
 
 def insert_listing(data):
     """Insert a new listing into the DB."""
