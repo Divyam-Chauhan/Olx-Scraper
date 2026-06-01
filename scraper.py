@@ -1,7 +1,6 @@
 """OLX Rental Scraper"""
 
 import time
-import winsound
 import eel
 import urllib.parse
 from urllib.parse import urljoin
@@ -15,6 +14,11 @@ from config import (
     BEEP_DURATION_MS,
 )
 from db import init_db, listing_exists, insert_listing, get_listing_count
+
+try:
+    import winsound
+except ImportError:
+    winsound = None
 
 # Threading state variables
 stop_requested = False
@@ -36,6 +40,17 @@ def update_ui_stats(processed, saved, duplicates):
         eel.update_stats(processed, saved, duplicates)
     except Exception:
         pass
+
+
+def play_captcha_alert():
+    """Play a CAPTCHA alert on Windows and fall back gracefully elsewhere."""
+    for _ in range(3):
+        if winsound:
+            winsound.Beep(BEEP_FREQUENCY, BEEP_DURATION_MS)
+        else:
+            print("\a", end="", flush=True)
+            time.sleep(BEEP_DURATION_MS / 1000)
+        time.sleep(0.3)
 
 
 def build_url(base_geo_url, bhk_config):
@@ -63,9 +78,7 @@ def alert_and_pause():
     except Exception:
         pass
 
-    for _ in range(3):
-        winsound.Beep(BEEP_FREQUENCY, BEEP_DURATION_MS)
-        time.sleep(0.3)
+    play_captcha_alert()
 
     # Wait until the UI sets captcha_solved to True or stop is requested
     while not captcha_solved and not stop_requested:
