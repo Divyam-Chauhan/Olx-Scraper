@@ -5,13 +5,14 @@ import sys
 import threading
 import time
 
-DEFAULT_PLAYWRIGHT_BROWSERS_PATH = os.path.join(
-    os.path.expanduser("~"),
-    "AppData",
-    "Local",
-    "ms-playwright",
-)
-os.environ.setdefault("PLAYWRIGHT_BROWSERS_PATH", DEFAULT_PLAYWRIGHT_BROWSERS_PATH)
+if os.name == "nt":
+    DEFAULT_PLAYWRIGHT_BROWSERS_PATH = os.path.join(
+        os.path.expanduser("~"),
+        "AppData",
+        "Local",
+        "ms-playwright",
+    )
+    os.environ.setdefault("PLAYWRIGHT_BROWSERS_PATH", DEFAULT_PLAYWRIGHT_BROWSERS_PATH)
 
 import eel
 import scraper
@@ -97,10 +98,12 @@ def install_chromium_browser():
 
     from playwright._impl._driver import compute_driver_executable, get_driver_env
 
-    os.makedirs(os.environ["PLAYWRIGHT_BROWSERS_PATH"], exist_ok=True)
     node_executable, cli_path = compute_driver_executable()
     env = get_driver_env()
-    env["PLAYWRIGHT_BROWSERS_PATH"] = os.environ["PLAYWRIGHT_BROWSERS_PATH"]
+    browser_path = os.environ.get("PLAYWRIGHT_BROWSERS_PATH")
+    if browser_path:
+        os.makedirs(browser_path, exist_ok=True)
+        env["PLAYWRIGHT_BROWSERS_PATH"] = browser_path
 
     creation_flags = 0
     if hasattr(subprocess, "CREATE_NO_WINDOW"):
