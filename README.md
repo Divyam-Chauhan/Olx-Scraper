@@ -1,4 +1,8 @@
+<div align="center">
+
 # OLX Rental Scraper
+
+**Your personal automated assistant for finding rental flats on OLX India.**
 
 Looking for flats in 45-degree heat is a sport nobody signed up for.
 
@@ -7,6 +11,21 @@ At the end of the academic year, I kept seeing bachelors around me doing the sam
 So I built a small desktop app that does the boring part for you.
 
 OLX Rental Scraper is a local desktop scraper for OLX India rental listings. Paste an OLX location URL, choose your BHK and budget filters, start scraping, and the app stores matching flats in a local SQLite database that you can view inside the app.
+
+<br>
+
+<video src="https://github.com/Divyam-Chauhan/Olx-Scraper/raw/main/web/OLX%20Scraper.mp4" controls="controls" width="80%" autoplay loop muted></video>
+
+*(If the video doesn't load, you can view it directly [here](web/OLX%20Scraper.mp4))*
+
+<br>
+
+[![Download OLX Rental Scraper for Windows](https://img.shields.io/badge/Download-Windows_zip-002f34?style=for-the-badge&logo=windows)](https://github.com/Divyam-Chauhan/Olx-Scraper/releases/download/v1.0.0/OLX_Rental_Scraper_Windows_v1.0.0.zip)
+[![Python](https://img.shields.io/badge/Python-3.11+-blue.svg?style=for-the-badge&logo=python)](https://www.python.org/)
+
+</div>
+
+---
 
 ## Download The Windows App
 
